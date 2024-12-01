@@ -204,7 +204,7 @@ class EvolutionVisualizer:
         Создает интерактивную 3D визуализацию ландшафта фитнес-функции
 
         Args:
-            fitness_function: Функция приспособленн��сти
+            fitness_function: Функция приспособленнсти
             bounds: Границы пространства поиска [(x_min, x_max), (y_min, y_max)]
             resolution: Разрешение сетки
         """
@@ -526,5 +526,158 @@ class EvolutionVisualizer:
 
         # Сохраняем дашборд
         fig.write_html(os.path.join(self.output_dir, 'advanced_dashboard.html'))
+
+    def plot_game_state(self,
+                        populations: List[Population],
+                        env_size: int,
+                        generation: int) -> None:
+        """
+        Создает интерактивную визуализацию состояния игры
+
+        Args:
+            populations: Список популяций
+            env_size: Размер игрового поля
+            generation: Номер текущего поколения
+        """
+        # Создаем фигуру
+        fig = go.Figure()
+
+        # Создаем сетку игрового поля
+        x = np.linspace(0, env_size-1, env_size)
+        y = np.linspace(0, env_size-1, env_size)
+        X, Y = np.meshgrid(x, y)
+
+        # Добавляем поле
+        fig.add_trace(go.Heatmap(
+            z=np.zeros((env_size, env_size)),
+            colorscale='Greys',
+            showscale=False,
+            name='Game Field'
+        ))
+
+        # Добавляем точки для каждой популяции
+        for pop_idx, population in enumerate(populations):
+            for chromosome in population.chromosomes:
+                # Получаем веса нейронной сети
+                w1 = chromosome.genes['w1'].value
+                w2 = chromosome.genes['w2'].value
+                b1 = chromosome.genes['b1'].value
+                b2 = chromosome.genes['b2'].value
+
+                # Создаем тепловую карту весов
+                weights = np.array([[w1, w2], [b1, b2]])
+
+                fig.add_trace(go.Scatter(
+                    x=[pop_idx],
+                    y=[chromosome.fitness],
+                    mode='markers',
+                    marker=dict(
+                        size=10,
+                        color=chromosome.fitness,
+                        colorscale='Viridis',
+                        showscale=True
+                    ),
+                    name=f'Chromosome {pop_idx}'
+                ))
+
+        # Настройка внешнего вида
+        fig.update_layout(
+            title=f'Game State (Generation {generation})',
+            xaxis_title='Population Index',
+            yaxis_title='Fitness',
+            width=1000,
+            height=800
+        )
+
+        # Сохраняем визуализацию
+        fig.write_html(os.path.join(self.output_dir,
+                                   f'game_state_gen_{generation}.html'))
+
+    def create_game_animation(self, evolution_history: List[Dict]) -> None:
+        """
+        Создает анимацию процесса игры
+
+        Args:
+            evolution_history: История эволюции по поколениям
+        """
+        frames = []
+
+        # Создаем кадры анимации
+        for gen_data in evolution_history:
+            frame_data = []
+
+            # Создаем сетку игрового поля
+            frame_data.append(
+                go.Heatmap(
+                    z=np.zeros((10, 10)),  # Размер поля 10x10
+                    colorscale='Greys',
+                    showscale=False,
+                    name='Game Field'
+                )
+            )
+
+            # Добавляем точки для каждой популяции
+            for pop_idx, population in enumerate(gen_data['populations']):
+                # Собираем веса нейронных сетей для визуализации
+                w1_vals = [chr.genes['w1'].value for chr in population.chromosomes]
+                w2_vals = [chr.genes['w2'].value for chr in population.chromosomes]
+                fitness_vals = [chr.fitness for chr in population.chromosomes]
+
+                frame_data.append(
+                    go.Scatter(
+                        x=w1_vals,
+                        y=w2_vals,
+                        mode='markers',
+                        marker=dict(
+                            size=10,
+                            color=fitness_vals,
+                            colorscale='Viridis',
+                            showscale=True
+                        ),
+                        name=f'Population {pop_idx + 1}'
+                    )
+                )
+
+            frames.append(go.Frame(
+                data=frame_data,
+                name=f"Generation {gen_data['generation']}"
+            ))
+
+        # Создаем финальную анимацию
+        fig = go.Figure(
+            data=frames[0].data,
+            layout=go.Layout(
+                title="Game Evolution Process",
+                xaxis_title="Weight 1",
+                yaxis_title="Weight 2",
+                updatemenus=[{
+                    'type': 'buttons',
+                    'showactive': False,
+                    'buttons': [{
+                        'label': 'Play',
+                        'method': 'animate',
+                        'args': [None, {
+                            'frame': {'duration': 500, 'redraw': True},
+                            'fromcurrent': True,
+                        }]
+                    }]
+                }],
+                sliders=[{
+                    'currentvalue': {'prefix': 'Generation: '},
+                    'steps': [
+                        {
+                            'method': 'animate',
+                            'label': f'{i}',
+                            'args': [[f'Generation {i}']]
+                        }
+                        for i in range(len(frames))
+                    ]
+                }]
+            ),
+            frames=frames
+        )
+
+        # Сохраняем анимацию
+        fig.write_html(os.path.join(self.output_dir, 'game_evolution_animation.html'))
 
     # ... rest of the class implementation ...

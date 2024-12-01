@@ -19,8 +19,7 @@ from ..utils.visualization import EvolutionVisualizer
 from ..utils.persistence import StatePersistence, AutoCheckpoint
 from .pareto_front import ParetoFront
 from .fitness_functions import rastrigin_function
-
-C = TypeVar('C', bound=Chromosome)
+from .base_types import C, GameChromosome
 
 @dataclass
 class EvolutionConfig:
@@ -98,7 +97,7 @@ class AdaptiveParameters:
             population_index: Индекс популяции
             fitness_improvement: Улучшение фитнеса
             diversity: Разнообразие популяции
-            convergence_speed: Скорость сходимости (изменение среднего фитнеса)
+            convergence_speed: Скорость ходимости (изменение среднего фитнеса)
         """
         # Обновляем счетчик стагнации
         if fitness_improvement <= 0:
@@ -306,6 +305,10 @@ class ExtendedMetadata:
             json_data = self._prepare_for_json(self.data)
             json.dump(json_data, f, indent=4)
 
+def is_game_chromosome(chromosome_class: Type[Chromosome]) -> bool:
+    """Проверяет, является ли класс игровой хромосомой"""
+    return issubclass(chromosome_class, GameChromosome)
+
 class Evolution(Generic[C]):
     """Расширенный класс эволюционного процесса"""
 
@@ -364,7 +367,7 @@ class Evolution(Generic[C]):
         else:
             self.checkpoint_manager = None
 
-        # Пул процессов
+        # Пул пр��цессов
         self.executor = ProcessPoolExecutor(max_workers=self.config.max_workers)
 
         # Семафор для ограничения параллельных вычислений
@@ -432,18 +435,8 @@ class Evolution(Generic[C]):
         self.metadata.data['performance']['evaluation_times'].append(evaluation_time)
 
     async def evolve(self, landscape_function=None) -> Optional[Chromosome]:
-        """
-        Основной метод эволюции
-
-        Args:
-            landscape_function: Функция для визуализации ландшафта фитнеса
-        """
+        """Основной метод эволюции"""
         evolution_history = []
-
-        # Если функция ландшафта не передана, используем rastrigin_function
-        if landscape_function is None:
-            from .fitness_functions import rastrigin_function
-            landscape_function = rastrigin_function
 
         try:
             await self.initialize()
@@ -502,20 +495,16 @@ class Evolution(Generic[C]):
 
             # Создаем визуализации
             if hasattr(self, 'visualizer'):
-                self.visualizer.plot_3d_population_evolution(
-                    self.populations,
-                    landscape_function,
-                    [(-5, 5), (-5, 5)],
-                    self.metadata.data['generation']
-                )
-
-            # Создаем финальную анимацию
-            if hasattr(self, 'visualizer'):
-                self.visualizer.create_evolution_animation(
-                    evolution_history,
-                    landscape_function,
-                    [(-5, 5), (-5, 5)]
-                )
+                if is_game_chromosome(self.chromosome_class):
+                    # Для игровой оптимизации
+                    self.visualizer.create_game_animation(evolution_history)
+                else:
+                    # Для обычной оптимизации
+                    self.visualizer.create_evolution_animation(
+                        evolution_history,
+                        landscape_function,
+                        [(-5, 5), (-5, 5)]
+                    )
                 self.visualizer.create_advanced_dashboard(self.metadata.data)
 
             return self._get_best_individual()
@@ -773,7 +762,7 @@ class Evolution(Generic[C]):
                     self.mutation_operator.update_success_rates(improvement)
 
     def _get_best_individual(self) -> Optional[Chromosome]:
-        """Получение лучшей особи из всех популяций"""
+        """олучение лучшей особи из всех популяций"""
         all_individuals = [
             ind for pop in self.populations
             for ind in pop.chromosomes

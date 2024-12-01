@@ -1,21 +1,30 @@
+from .base_types import (
+    C,
+    GameChromosome,
+    OptimizationChromosome
+)
+
 from .chromosome import (
     Gene,
-    NumericGene,
     FloatGene,
+    NumericGene,
     IntegerGene,
     BinaryGene,
     DiscreteGene,
     Chromosome
 )
+
 from .population import Population
 from .evolution import Evolution, MultiObjectiveEvolution
 from .fitness import FitnessFunction, MultiFitness
-from .multi_objective import ParetoFront, NonDominatedSorting, CrowdedComparisonOperator
 
 __all__ = [
+    'C',
+    'GameChromosome',
+    'OptimizationChromosome',
     'Gene',
-    'NumericGene',
     'FloatGene',
+    'NumericGene',
     'IntegerGene',
     'BinaryGene',
     'DiscreteGene',
@@ -24,8 +33,5 @@ __all__ = [
     'Evolution',
     'MultiObjectiveEvolution',
     'FitnessFunction',
-    'MultiFitness',
-    'ParetoFront',
-    'NonDominatedSorting',
-    'CrowdedComparisonOperator'
+    'MultiFitness'
 ]
