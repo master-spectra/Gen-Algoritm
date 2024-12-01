@@ -18,6 +18,7 @@ from ..operators.mutation import MutationOperator, AdaptiveMutation
 from ..utils.visualization import EvolutionVisualizer
 from ..utils.persistence import StatePersistence, AutoCheckpoint
 from .pareto_front import ParetoFront
+from .fitness_functions import rastrigin_function
 
 C = TypeVar('C', bound=Chromosome)
 
@@ -430,14 +431,45 @@ class Evolution(Generic[C]):
         evaluation_time = time.time() - evaluation_start
         self.metadata.data['performance']['evaluation_times'].append(evaluation_time)
 
-    async def evolve(self) -> Optional[Chromosome]:
-        """Основной метод эволюции с расширенной функциональностью"""
+    async def evolve(self, landscape_function=None) -> Optional[Chromosome]:
+        """
+        Основной метод эволюции
+
+        Args:
+            landscape_function: Функция для визуализации ландшафта фитнеса
+        """
+        evolution_history = []
+
+        # Если функция ландшафта не передана, используем rastrigin_function
+        if landscape_function is None:
+            from .fitness_functions import rastrigin_function
+            landscape_function = rastrigin_function
+
         try:
             await self.initialize()
 
             while (self.metadata.data['generation'] < self.config.max_generations and
                    self.metadata.data['convergence']['stagnation_counter'] <
                    self.config.stagnation_limit):
+
+                # Сохраняем состояние для анимации
+                current_state = {
+                    'generation': self.metadata.data['generation'],
+                    'populations': []
+                }
+
+                # Создаем снимок текущего состояния популяций
+                for population in self.populations:
+                    copied_chromosomes = [chr.copy() for chr in population.chromosomes]
+                    current_state['populations'].append(
+                        Population(
+                            chromosomes=copied_chromosomes,
+                            max_size=population.max_size,
+                            metadata=population.metadata.copy() if population.metadata else None
+                        )
+                    )
+
+                evolution_history.append(current_state)
 
                 generation_start = time.time()
 
@@ -468,16 +500,29 @@ class Evolution(Generic[C]):
 
                 self.metadata.data['generation'] += 1
 
-            # Получаем лучшую особь и создаем отчеты
-            best_individual = await self._finalize_evolution()
-            return best_individual
+            # Создаем визуализации
+            if hasattr(self, 'visualizer'):
+                self.visualizer.plot_3d_population_evolution(
+                    self.populations,
+                    landscape_function,
+                    [(-5, 5), (-5, 5)],
+                    self.metadata.data['generation']
+                )
+
+            # Создаем финальную анимацию
+            if hasattr(self, 'visualizer'):
+                self.visualizer.create_evolution_animation(
+                    evolution_history,
+                    landscape_function,
+                    [(-5, 5), (-5, 5)]
+                )
+                self.visualizer.create_advanced_dashboard(self.metadata.data)
+
+            return self._get_best_individual()
 
         except Exception as e:
             print(f"Error during evolution: {e}")
-            await self._handle_evolution_error()
             raise
-        finally:
-            self.executor.shutdown()
 
     async def _migrate(self) -> None:
         """Асинхронная миграция между популяциями"""
@@ -530,7 +575,7 @@ class Evolution(Generic[C]):
             self.checkpoint_manager.update(self)
 
     async def _check_convergence(self) -> bool:
-        """Асинхронная проверка сходимости"""
+        """Асинхронная проверк сходимости"""
         if len(self.metadata.data['fitness']['best']) < 2:
             return False
 
@@ -676,7 +721,7 @@ class Evolution(Generic[C]):
         async with self._sem:
             offspring = []
             for _ in range(0, batch_size, 2):
-                # Селекция родителей с учетом давления отбора
+                # Селекция родителй с учетом давления отбора
                 if isinstance(self.selection_operator, AdaptiveSelection):
                     self.selection_operator.set_selection_pressure(selection_pressure)
                 parents = self.selection_operator.select(parents_pool, num_parents=2)
@@ -772,7 +817,7 @@ class MultiObjectiveEvolution(Evolution[C]):
         """Обновление метаданных эволюции"""
         super()._update_metadata(generation, population)
 
-        # Добавляем метаданные для многокритериальной оптимизации
+        # Добавляем метаданные для многокритериально оптимизации
         if 'multi_objective' not in self.metadata:
             self.metadata['multi_objective'] = {
                 'pareto_front_size': [],
@@ -806,7 +851,7 @@ class MultiObjectiveEvolution(Evolution[C]):
         super()._visualize_generation(generation)
 
         if self.visualization and generation % self.visualization_frequency == 0:
-            # Визуализируем пространство целевых функций
+            # Визуализируем прстранство целвых функций
             objective_names = self.fitness_function.objectives
             if len(objective_names) == 2:
                 self.visualization.plot_objective_space(

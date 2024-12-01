@@ -14,7 +14,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from genetic_lib.core.chromosome import FloatGene, Chromosome
 from genetic_lib.core.evolution import Evolution, EvolutionConfig
-from genetic_lib.core.fitness_functions import RastriginFunction, plot_rastrigin_landscape
+from genetic_lib.core.fitness_functions import (
+    RastriginFunction,
+    plot_rastrigin_landscape,
+    rastrigin_function  # Добавляем импорт функции
+)
 from genetic_lib.operators.selection import TournamentSelection
 from genetic_lib.operators.crossover import UniformCrossover
 from genetic_lib.operators.mutation import GaussianMutation
@@ -79,10 +83,13 @@ async def main():
         output_dir='optimization_results'
     )
 
+    # Создаем функцию приспособленности
+    fitness_function = RastriginFunction()
+
     # Настраиваем эволюцию
     evolution = Evolution(
         chromosome_class=OptimizationChromosome,
-        fitness_function=RastriginFunction(),
+        fitness_function=fitness_function,
         selection_operator=TournamentSelection(tournament_size=3),
         crossover_operator=UniformCrossover(swap_probability=0.7),
         mutation_operator=GaussianMutation(scale=0.2),
@@ -90,7 +97,7 @@ async def main():
     )
 
     print("Starting optimization...")
-    best_solution = await evolution.evolve()
+    best_solution = await evolution.evolve(landscape_function=rastrigin_function)
 
     # Получаем оптимальные значения
     x_opt = best_solution.genes['x'].value

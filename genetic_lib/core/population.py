@@ -174,3 +174,27 @@ class Population(Generic[C]):
         )
         population.generation = data['generation']
         return population
+
+    def copy(self, deep: bool = True) -> 'Population':
+        """
+        Создает копию популяции
+
+        Args:
+            deep: Если True, создает глубокую копию всех хромосом
+                  Если False, создает поверхностную копию
+
+        Returns:
+            Population: Копия популяции
+        """
+        if deep:
+            copied_chromosomes = [chromosome.copy() for chromosome in self.chromosomes]
+        else:
+            copied_chromosomes = self.chromosomes.copy()
+
+        copied_population = Population(
+            chromosomes=copied_chromosomes,
+            max_size=self.max_size,
+            metadata=self.metadata.copy() if self.metadata else None
+        )
+        copied_population.generation = self.generation
+        return copied_population
